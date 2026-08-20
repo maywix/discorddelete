@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cleaner</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg-glow"></div>
+
+    <main class="shell">
+        <header class="head">
+            <div class="mark">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+                    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div>
+                <h1>Cleaner</h1>
+                <p class="sub">Supprime tes messages Discord — salon ou MP</p>
+            </div>
+        </header>
+
+        <details class="notice">
+            <summary>
+                <span class="dot"></span>
+                À lire avant utilisation
+            </summary>
+            <p>
+                Cet outil utilise ton token de compte <strong>utilisateur</strong> pour automatiser des suppressions.
+                C'est contraire aux conditions d'utilisation de Discord (self-bot) et peut entraîner un bannissement.
+                Ton token n'est envoyé qu'à ton propre serveur local, jamais stocké ni transmis ailleurs. Utilise-le
+                à tes risques, idéalement sur un compte secondaire.
+            </p>
+        </details>
+
+        <form id="cleanForm" class="card" autocomplete="off">
+            <div class="field">
+                <label for="token">Token utilisateur</label>
+                <div class="input-wrap">
+                    <input type="password" id="token" placeholder="•••••••••••••••••••••" required spellcheck="false">
+                    <button type="button" id="toggleToken" class="ghost-btn" aria-label="Afficher le token">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+                            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" stroke-linejoin="round"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="userId">Ton ID Discord</label>
+                <input type="text" id="userId" placeholder="ex : 123456789012345678" required inputmode="numeric">
+            </div>
+
+            <div class="field">
+                <label>Cible</label>
+                <div class="segmented" role="tablist">
+                    <button type="button" class="seg-btn active" data-type="guild" role="tab" aria-selected="true">Salon</button>
+                    <button type="button" class="seg-btn" data-type="dm" role="tab" aria-selected="false">Message privé</button>
+                </div>
+            </div>
+
+            <div class="field" id="channelIdGroup">
+                <label for="channelId">ID du salon</label>
+                <input type="text" id="channelId" placeholder="ID du salon (guild channel)" inputmode="numeric">
+            </div>
+
+            <div class="field hidden" id="dmUserIdGroup">
+                <label for="dmUserId">ID de l'interlocuteur</label>
+                <input type="text" id="dmUserId" placeholder="ID de l'utilisateur en MP" inputmode="numeric">
+            </div>
+
+            <button type="submit" id="cleanButton" class="primary-btn">
+                <span class="btn-label">Lancer le nettoyage</span>
+                <span class="spinner" aria-hidden="true"></span>
+            </button>
+
+            <p id="status" class="status" role="status"></p>
+        </form>
+
+        <section class="console" id="consoleSection">
+            <div class="console-head">
+                <span>Journal</span>
+                <span id="counter" class="counter">0 supprimé</span>
+            </div>
+            <div id="log" class="console-body">
+                <div class="line placeholder">En attente d'un nettoyage…</div>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
