@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const logEl = document.getElementById('log');
     const counterEl = document.getElementById('counter');
 
-    const backendUrl = 'http://localhost:3000/clean';
+    const backendUrl = '/clean';
     let cleanupType = 'guild';
     let deletedCount = 0;
 
