@@ -145,14 +145,24 @@ body {
     gap: 7px;
 }
 
-.field.hidden {
-    display: none;
-}
-
 .field label {
     font-size: 0.78rem;
     font-weight: 500;
     color: var(--text-dim);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.hint {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--text-faint);
+}
+
+.hint.center {
+    text-align: center;
+    margin: -4px 0 0;
 }
 
 input[type="text"],
@@ -212,37 +222,78 @@ input:focus {
     background: #1c1c20;
 }
 
-/* Segmented control */
-.segmented {
+/* Targets list */
+.targets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.target-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 92px 1fr auto;
+    gap: 8px;
+}
+
+.target-row select {
+    width: 100%;
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 9px;
-    padding: 3px;
-    gap: 3px;
-}
-
-.seg-btn {
-    border: none;
-    background: transparent;
-    color: var(--text-faint);
+    padding: 0 8px;
+    color: var(--text);
     font-size: 0.83rem;
-    font-weight: 500;
     font-family: inherit;
-    padding: 8px 0;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
+    outline: none;
 }
 
-.seg-btn.active {
-    background: #232327;
+.target-row select:focus {
+    border-color: #3a3a41;
+}
+
+.remove-target-btn {
+    width: 38px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text-faint);
+    border-radius: 9px;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.remove-target-btn:hover:not(:disabled) {
+    color: var(--danger);
+    border-color: #3a2222;
+}
+
+.remove-target-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.add-btn {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-family: inherit;
+    padding: 8px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.add-btn:hover:not(:disabled) {
+    border-color: #3a3a41;
     color: var(--text);
 }
 
-.seg-btn:not(.active):hover {
-    color: var(--text-dim);
+.add-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* Primary button */

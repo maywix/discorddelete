@@ -5,6 +5,20 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// File d'attente globale des suppressions : même si plusieurs salons/MP sont
+// nettoyés en parallèle, une seule suppression part toutes les DELAY_MS pour
+// tout le monde. Le rate-limit reste le même qu'avec une seule cible à la fois.
+let deleteQueue = Promise.resolve();
+function withGlobalRateLimit(task) {
+  const run = deleteQueue.then(async () => {
+    const result = await task();
+    await sleep(DELAY_MS);
+    return result;
+  });
+  deleteQueue = run.catch(() => {}); // ne bloque pas la file si une suppression échoue
+  return run;
+}
+
 async function apiFetch(token, path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     ...options,
@@ -38,12 +52,14 @@ async function fetchMessages(token, channelId, before) {
 }
 
 async function deleteMessage(token, channelId, messageId) {
-  const res = await apiFetch(token, `/channels/${channelId}/messages/${messageId}`, {
-    method: "DELETE",
+  return withGlobalRateLimit(async () => {
+    const res = await apiFetch(token, `/channels/${channelId}/messages/${messageId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok && res.status !== 404) {
+      console.error(`Erreur suppression ${messageId}:`, res.status, await res.text());
+    }
   });
-  if (!res.ok && res.status !== 404) {
-    console.error(`Erreur suppression ${messageId}:`, res.status, await res.text());
-  }
 }
 
 async function cleanChannel(token, userId, channelId, progressCallback) {
@@ -65,13 +81,10 @@ async function cleanChannel(token, userId, channelId, progressCallback) {
       const logMessage = `Supprimé (${totalDeleted}) : "${messageContent}"`;
       console.log(logMessage);
       if (progressCallback) progressCallback(logMessage);
-      await sleep(DELAY_MS);
     }
   }
 
-  const finalMessage = `Terminé pour ${channelId} : ${totalDeleted} message(s) supprimé(s).`;
-  console.log(finalMessage);
-  if (progressCallback) progressCallback(finalMessage);
+  console.log(`Terminé pour ${channelId} : ${totalDeleted} message(s) supprimé(s).`);
   return totalDeleted;
 }
 

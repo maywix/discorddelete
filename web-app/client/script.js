@@ -3,11 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const tokenInput = document.getElementById('token');
     const toggleTokenBtn = document.getElementById('toggleToken');
     const userIdInput = document.getElementById('userId');
-    const segButtons = Array.from(document.querySelectorAll('.seg-btn'));
-    const channelIdGroup = document.getElementById('channelIdGroup');
-    const channelIdInput = document.getElementById('channelId');
-    const dmUserIdGroup = document.getElementById('dmUserIdGroup');
-    const dmUserIdInput = document.getElementById('dmUserId');
+    const targetsList = document.getElementById('targetsList');
+    const addTargetBtn = document.getElementById('addTargetBtn');
     const cleanButton = document.getElementById('cleanButton');
     const statusEl = document.getElementById('status');
     const consoleSection = document.getElementById('consoleSection');
@@ -15,27 +12,73 @@ document.addEventListener('DOMContentLoaded', () => {
     const counterEl = document.getElementById('counter');
 
     const backendUrl = '/clean';
-    let cleanupType = 'guild';
+    const MAX_TARGETS = 10;
     let deletedCount = 0;
 
+    // --- Token visibility ---
     toggleTokenBtn.addEventListener('click', () => {
         const showing = tokenInput.type === 'text';
         tokenInput.type = showing ? 'password' : 'text';
         toggleTokenBtn.setAttribute('aria-label', showing ? 'Afficher le token' : 'Masquer le token');
     });
 
-    segButtons.forEach((btn) => {
-        btn.addEventListener('click', () => {
-            cleanupType = btn.dataset.type;
-            segButtons.forEach((b) => {
-                b.classList.toggle('active', b === btn);
-                b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
-            });
-            channelIdGroup.classList.toggle('hidden', cleanupType !== 'guild');
-            dmUserIdGroup.classList.toggle('hidden', cleanupType !== 'dm');
+    // --- Targets list (up to MAX_TARGETS) ---
+    function createTargetRow() {
+        const row = document.createElement('div');
+        row.className = 'target-row';
+        row.innerHTML = `
+            <select class="target-type">
+                <option value="guild">Salon</option>
+                <option value="dm">MP</option>
+            </select>
+            <input type="text" class="target-id" placeholder="ID du salon" inputmode="numeric">
+            <button type="button" class="remove-target-btn" aria-label="Retirer cette cible">×</button>
+        `;
+        return row;
+    }
+
+    function updateTargetsUi() {
+        const count = targetsList.children.length;
+        addTargetBtn.disabled = count >= MAX_TARGETS;
+        addTargetBtn.textContent = count >= MAX_TARGETS ? 'Limite atteinte (10)' : '+ Ajouter une cible';
+        targetsList.querySelectorAll('.remove-target-btn').forEach((btn) => {
+            btn.disabled = count <= 1;
         });
+    }
+
+    function addTargetRow() {
+        if (targetsList.children.length >= MAX_TARGETS) return;
+        targetsList.appendChild(createTargetRow());
+        updateTargetsUi();
+    }
+
+    addTargetBtn.addEventListener('click', addTargetRow);
+
+    targetsList.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-target-btn');
+        if (!btn || btn.disabled) return;
+        btn.closest('.target-row').remove();
+        updateTargetsUi();
     });
 
+    targetsList.addEventListener('change', (e) => {
+        if (!e.target.classList.contains('target-type')) return;
+        const input = e.target.closest('.target-row').querySelector('.target-id');
+        input.placeholder = e.target.value === 'dm' ? "ID de l'interlocuteur" : 'ID du salon';
+    });
+
+    addTargetRow(); // une cible par défaut
+
+    function collectTargets() {
+        return Array.from(targetsList.querySelectorAll('.target-row'))
+            .map((row) => ({
+                type: row.querySelector('.target-type').value,
+                id: row.querySelector('.target-id').value.trim(),
+            }))
+            .filter((t) => t.id);
+    }
+
+    // --- Status / console ---
     function setStatus(text, kind) {
         statusEl.textContent = text;
         statusEl.className = 'status' + (kind ? ` ${kind}` : '');
@@ -54,6 +97,56 @@ document.addEventListener('DOMContentLoaded', () => {
         cleanButton.classList.toggle('loading', isLoading);
     }
 
+    // --- Fin de nettoyage : notification navigateur + bip + titre d'onglet ---
+    const originalTitle = document.title;
+    let titleFlashTimer = null;
+
+    function flashTitle(text) {
+        if (!document.hidden) return;
+        let flashed = false;
+        clearInterval(titleFlashTimer);
+        titleFlashTimer = setInterval(() => {
+            document.title = flashed ? originalTitle : text;
+            flashed = !flashed;
+        }, 900);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && titleFlashTimer) {
+            clearInterval(titleFlashTimer);
+            titleFlashTimer = null;
+            document.title = originalTitle;
+        }
+    });
+
+    function beep() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        } catch {
+            // audio indisponible, tant pis
+        }
+    }
+
+    function notifyDone(totalDeleted) {
+        beep();
+        flashTitle('✅ Terminé');
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Nettoyage terminé', {
+                body: `${totalDeleted} message(s) supprimé(s).`,
+            });
+        }
+    }
+
+    // --- Streaming NDJSON ---
     async function handleStream(response) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -77,13 +170,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (payload.type === 'log') {
-                    appendLine(payload.message);
+                    appendLine(payload.label ? `[${payload.label}] ${payload.message}` : payload.message);
                     deletedCount += 1;
                     counterEl.textContent = `${deletedCount} supprimé${deletedCount > 1 ? 's' : ''}`;
+                } else if (payload.type === 'target-done') {
+                    appendLine(`— ${payload.label} : ${payload.totalDeleted} supprimé(s) —`);
                 } else if (payload.type === 'error') {
-                    setStatus(payload.message, 'error');
+                    appendLine(`⚠ ${payload.label ? `[${payload.label}] ` : ''}${payload.message}`);
+                    if (!payload.label) setStatus(payload.message, 'error');
                 } else if (payload.type === 'done') {
-                    setStatus(`Terminé — ${payload.totalDeleted} message(s) supprimé(s).`, 'success');
+                    setStatus(`Terminé — ${payload.totalDeleted} message(s) supprimé(s) au total.`, 'success');
+                    notifyDone(payload.totalDeleted);
                 }
             }
         }
@@ -92,23 +189,19 @@ document.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        // Demande la permission de notification pendant le geste utilisateur (clic).
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+        }
+
         const token = tokenInput.value.trim();
         const userId = userIdInput.value.trim();
-        const channelId = channelIdInput.value.trim();
-        const dmUserId = dmUserIdInput.value.trim();
+        const targets = collectTargets();
 
-        if (cleanupType === 'guild' && !channelId) {
-            setStatus('Renseigne un ID de salon.', 'error');
+        if (!targets.length) {
+            setStatus('Ajoute au moins une cible avec un ID.', 'error');
             return;
         }
-        if (cleanupType === 'dm' && !dmUserId) {
-            setStatus("Renseigne l'ID de l'interlocuteur.", 'error');
-            return;
-        }
-
-        const payload = { token, userId };
-        if (cleanupType === 'guild') payload.channelId = channelId;
-        else payload.dmUserId = dmUserId;
 
         deletedCount = 0;
         counterEl.textContent = '0 supprimé';
@@ -121,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(backendUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({ token, userId, targets }),
             });
 
             if (!response.ok) {

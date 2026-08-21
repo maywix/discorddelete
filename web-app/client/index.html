@@ -55,21 +55,9 @@
             </div>
 
             <div class="field">
-                <label>Cible</label>
-                <div class="segmented" role="tablist">
-                    <button type="button" class="seg-btn active" data-type="guild" role="tab" aria-selected="true">Salon</button>
-                    <button type="button" class="seg-btn" data-type="dm" role="tab" aria-selected="false">Message privé</button>
-                </div>
-            </div>
-
-            <div class="field" id="channelIdGroup">
-                <label for="channelId">ID du salon</label>
-                <input type="text" id="channelId" placeholder="ID du salon (guild channel)" inputmode="numeric">
-            </div>
-
-            <div class="field hidden" id="dmUserIdGroup">
-                <label for="dmUserId">ID de l'interlocuteur</label>
-                <input type="text" id="dmUserId" placeholder="ID de l'utilisateur en MP" inputmode="numeric">
+                <label>Cibles <span class="hint">10 max, nettoyées en parallèle</span></label>
+                <div id="targetsList" class="targets-list"></div>
+                <button type="button" id="addTargetBtn" class="add-btn">+ Ajouter une cible</button>
             </div>
 
             <button type="submit" id="cleanButton" class="primary-btn">
@@ -77,6 +65,7 @@
                 <span class="spinner" aria-hidden="true"></span>
             </button>
 
+            <p class="hint center">🔔 Une notification s'affiche à la fin du nettoyage.</p>
             <p id="status" class="status" role="status"></p>
         </form>
 

@@ -11,41 +11,72 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../client')));
 
+const MAX_TARGETS = 10;
+
 app.post('/clean', async (req, res) => {
-  const { token, userId, channelId, dmUserId } = req.body;
+  const { token, userId, targets } = req.body;
 
   if (!token || !userId) {
     return res.status(400).json({ error: 'Token and User ID are required.' });
   }
 
-  if (!channelId && !dmUserId) {
-    return res.status(400).json({ error: 'Either channelId or dmUserId must be provided.' });
+  if (!Array.isArray(targets) || targets.length === 0) {
+    return res.status(400).json({ error: 'Ajoute au moins une cible.' });
+  }
+
+  if (targets.length > MAX_TARGETS) {
+    return res.status(400).json({ error: `${MAX_TARGETS} cibles maximum par lancement.` });
+  }
+
+  for (const t of targets) {
+    if (!t || !t.id || !['guild', 'dm'].includes(t.type)) {
+      return res.status(400).json({ error: 'Cible invalide.' });
+    }
   }
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Cache-Control', 'no-cache');
 
   const send = (payload) => res.write(`${JSON.stringify(payload)}\n`);
-  const progressCallback = (message) => send({ type: 'log', message });
+
+  // Les salons/MP sont nettoyés en parallèle, mais toutes les suppressions
+  // passent par la même file d'attente globale (voir discord-service.js) :
+  // le rythme des requêtes vers Discord reste identique à une seule cible.
+  let dmChannelsCache = null;
+  async function resolveDmChannelId(dmUserId) {
+    if (!dmChannelsCache) dmChannelsCache = await fetchDMChannels(token);
+    const found = dmChannelsCache.find(
+      (c) => c.recipients?.length === 1 && c.recipients[0].id === dmUserId
+    );
+    return found ? found.id : null;
+  }
+
+  async function runTarget(target, index) {
+    const label = target.type === 'dm' ? `MP ${target.id}` : `Salon ${target.id}`;
+    const progressCallback = (message) => send({ type: 'log', targetId: index, label, message });
+
+    try {
+      let channelId = target.id;
+      if (target.type === 'dm') {
+        channelId = await resolveDmChannelId(target.id);
+        if (!channelId) {
+          send({ type: 'error', targetId: index, label, message: 'MP introuvable pour cet utilisateur.' });
+          return 0;
+        }
+      }
+      const totalDeleted = await cleanChannel(token, userId, channelId, progressCallback);
+      send({ type: 'target-done', targetId: index, label, totalDeleted });
+      return totalDeleted;
+    } catch (error) {
+      console.error(`Error cleaning target ${label}:`, error);
+      send({ type: 'error', targetId: index, label, message: error.message });
+      return 0;
+    }
+  }
 
   try {
-    let totalDeleted;
-    if (channelId) {
-      console.log(`Cleaning guild channel: ${channelId}`);
-      totalDeleted = await cleanChannel(token, userId, channelId, progressCallback);
-    } else {
-      console.log(`Cleaning DMs with user: ${dmUserId}`);
-      const dmChannels = await fetchDMChannels(token);
-      const targetDmChannel = dmChannels.find(
-        (c) => c.recipients?.length === 1 && c.recipients[0].id === dmUserId
-      );
-
-      if (!targetDmChannel) {
-        send({ type: 'error', message: 'DM channel not found for the specified user.' });
-        return res.end();
-      }
-      totalDeleted = await cleanChannel(token, userId, targetDmChannel.id, progressCallback);
-    }
+    const results = await Promise.all(targets.map((t, i) => runTarget(t, i)));
+    const totalDeleted = results.reduce((sum, n) => sum + n, 0);
     send({ type: 'done', totalDeleted });
   } catch (error) {
     console.error('Error during cleanup:', error);
