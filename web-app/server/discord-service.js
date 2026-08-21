@@ -62,12 +62,12 @@ async function deleteMessage(token, channelId, messageId) {
   });
 }
 
-async function cleanChannel(token, userId, channelId, progressCallback) {
+async function cleanChannel(token, userId, channelId, progressCallback, shouldStop = () => false) {
   console.log(`\n--- Nettoyage du salon ${channelId} ---`);
   let before = undefined;
   let totalDeleted = 0;
 
-  while (true) {
+  while (!shouldStop()) {
     const messages = await fetchMessages(token, channelId, before);
     if (!messages.length) break;
 
@@ -75,6 +75,7 @@ async function cleanChannel(token, userId, channelId, progressCallback) {
 
     const myMessages = messages.filter((m) => m.author?.id === userId);
     for (const msg of myMessages) {
+      if (shouldStop()) break;
       await deleteMessage(token, channelId, msg.id);
       totalDeleted++;
       const messageContent = msg.content ? msg.content.slice(0, 40) : '<empty content>';

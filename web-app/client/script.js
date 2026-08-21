@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const targetsList = document.getElementById('targetsList');
     const addTargetBtn = document.getElementById('addTargetBtn');
     const cleanButton = document.getElementById('cleanButton');
+    const stopButton = document.getElementById('stopButton');
     const statusEl = document.getElementById('status');
     const consoleSection = document.getElementById('consoleSection');
     const logEl = document.getElementById('log');
@@ -14,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const backendUrl = '/clean';
     const MAX_TARGETS = 10;
     let deletedCount = 0;
+    let abortController = null;
 
     // --- Token visibility ---
     toggleTokenBtn.addEventListener('click', () => {
@@ -95,7 +97,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function setLoading(isLoading) {
         cleanButton.disabled = isLoading;
         cleanButton.classList.toggle('loading', isLoading);
+        stopButton.hidden = !isLoading;
+        stopButton.disabled = false;
     }
+
+    stopButton.addEventListener('click', () => {
+        if (!abortController) return;
+        stopButton.disabled = true;
+        setStatus('Arrêt du nettoyage…');
+        abortController.abort();
+    });
 
     // --- Fin de nettoyage : notification navigateur + bip + titre d'onglet ---
     const originalTitle = document.title;
@@ -175,6 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     counterEl.textContent = `${deletedCount} supprimé${deletedCount > 1 ? 's' : ''}`;
                 } else if (payload.type === 'target-done') {
                     appendLine(`— ${payload.label} : ${payload.totalDeleted} supprimé(s) —`);
+                } else if (payload.type === 'target-stopped') {
+                    appendLine(`— ${payload.label} : arrêté après ${payload.totalDeleted} supprimé(s) —`);
                 } else if (payload.type === 'error') {
                     appendLine(`⚠ ${payload.label ? `[${payload.label}] ` : ''}${payload.message}`);
                     if (!payload.label) setStatus(payload.message, 'error');
@@ -210,11 +223,14 @@ document.addEventListener('DOMContentLoaded', () => {
         setLoading(true);
         setStatus('Connexion au serveur…');
 
+        abortController = new AbortController();
+
         try {
             const response = await fetch(backendUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, userId, targets }),
+                signal: abortController.signal,
             });
 
             if (!response.ok) {
@@ -226,10 +242,15 @@ document.addEventListener('DOMContentLoaded', () => {
             setStatus('Nettoyage en cours…');
             await handleStream(response);
         } catch (err) {
-            console.error(err);
-            setStatus('Serveur injoignable — vérifie que le backend tourne.', 'error');
+            if (err.name === 'AbortError') {
+                setStatus('Nettoyage arrêté.');
+            } else {
+                console.error(err);
+                setStatus('Serveur injoignable — vérifie que le backend tourne.', 'error');
+            }
         } finally {
             setLoading(false);
+            abortController = null;
         }
     });
 });

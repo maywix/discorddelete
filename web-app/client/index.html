@@ -60,10 +60,13 @@
                 <button type="button" id="addTargetBtn" class="add-btn">+ Ajouter une cible</button>
             </div>
 
-            <button type="submit" id="cleanButton" class="primary-btn">
-                <span class="btn-label">Lancer le nettoyage</span>
-                <span class="spinner" aria-hidden="true"></span>
-            </button>
+            <div class="btn-row">
+                <button type="submit" id="cleanButton" class="primary-btn">
+                    <span class="btn-label">Lancer le nettoyage</span>
+                    <span class="spinner" aria-hidden="true"></span>
+                </button>
+                <button type="button" id="stopButton" class="stop-btn" hidden>Arrêter</button>
+            </div>
 
             <p class="hint center">🔔 Une notification s'affiche à la fin du nettoyage.</p>
             <p id="status" class="status" role="status"></p>

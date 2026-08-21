@@ -37,7 +37,23 @@ app.post('/clean', async (req, res) => {
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Cache-Control', 'no-cache');
 
-  const send = (payload) => res.write(`${JSON.stringify(payload)}\n`);
+  const send = (payload) => {
+    if (res.writableEnded) return;
+    try {
+      res.write(`${JSON.stringify(payload)}\n`);
+    } catch {
+      // client déjà déconnecté
+    }
+  };
+
+  // Le client coupe la connexion (bouton Arrêter) pour stopper le nettoyage.
+  // 'close' se déclenche aussi après une réponse terminée normalement, donc on
+  // ne considère que c'est un arrêt que si on n'avait pas encore fini d'écrire.
+  let stopped = false;
+  res.on('close', () => {
+    if (!res.writableEnded) stopped = true;
+  });
+  const shouldStop = () => stopped;
 
   // Les salons/MP sont nettoyés en parallèle, mais toutes les suppressions
   // passent par la même file d'attente globale (voir discord-service.js) :
@@ -64,8 +80,8 @@ app.post('/clean', async (req, res) => {
           return 0;
         }
       }
-      const totalDeleted = await cleanChannel(token, userId, channelId, progressCallback);
-      send({ type: 'target-done', targetId: index, label, totalDeleted });
+      const totalDeleted = await cleanChannel(token, userId, channelId, progressCallback, shouldStop);
+      send({ type: stopped ? 'target-stopped' : 'target-done', targetId: index, label, totalDeleted });
       return totalDeleted;
     } catch (error) {
       console.error(`Error cleaning target ${label}:`, error);
@@ -77,7 +93,7 @@ app.post('/clean', async (req, res) => {
   try {
     const results = await Promise.all(targets.map((t, i) => runTarget(t, i)));
     const totalDeleted = results.reduce((sum, n) => sum + n, 0);
-    send({ type: 'done', totalDeleted });
+    if (!stopped) send({ type: 'done', totalDeleted });
   } catch (error) {
     console.error('Error during cleanup:', error);
     send({ type: 'error', message: error.message });

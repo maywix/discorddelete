@@ -296,9 +296,16 @@ input:focus {
     cursor: not-allowed;
 }
 
+/* Button row */
+.btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
 /* Primary button */
 .primary-btn {
-    margin-top: 4px;
+    flex: 1;
     background: var(--accent);
     color: #000;
     border: none;
@@ -325,6 +332,28 @@ input:focus {
 
 .primary-btn:disabled {
     opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.stop-btn {
+    background: transparent;
+    border: 1px solid #3a2222;
+    color: var(--danger);
+    border-radius: 9px;
+    padding: 12px 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.stop-btn:hover:not(:disabled) {
+    background: rgba(255, 92, 92, 0.08);
+}
+
+.stop-btn:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
